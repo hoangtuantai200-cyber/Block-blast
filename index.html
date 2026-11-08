@@ -1,0 +1,967 @@
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#101321">
+<title>Block Blast Online</title>
+
+<script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
+
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#101321;color:white;font-family:Arial,sans-serif;min-height:100vh;overscroll-behavior:none}
+button,input{font:inherit}
+.screen{display:none;width:100%;max-width:480px;min-height:100vh;margin:auto;padding:18px 15px}
+.screen.active{display:flex;flex-direction:column}
+.logo{text-align:center;font-size:34px;font-weight:1000;margin-top:30px}
+.logo span{color:#8c9cff}
+.subtitle{text-align:center;color:#9ca9d0;font-size:11px;letter-spacing:4px}
+.panel{background:#1b2238;border:1px solid #303b5c;border-radius:20px;padding:18px;box-shadow:0 12px 35px #0004}
+.blocks{display:flex;justify-content:center;gap:10px;margin:38px 0}
+.block{width:65px;height:65px;border-radius:13px;display:grid;place-items:center;font-size:30px;box-shadow:0 7px 0 #0003}
+.yellow{background:#ffca55;color:#222b43}
+.green{background:#5de0c2;color:#222b43}
+.purple{background:#a78bfa;color:#222b43}
+input{width:100%;padding:16px;border:1px solid #3b4666;border-radius:12px;background:#10182b;color:white;outline:none;font-size:16px}
+.btn{width:100%;padding:16px;margin-top:12px;border:0;border-radius:13px;background:linear-gradient(135deg,#8291ff,#5968e9);color:white;font-weight:900;letter-spacing:1px;box-shadow:0 5px 0 #3c48a8}
+.btn:disabled{opacity:.4}
+.btn.secondary{background:#303a58;box-shadow:0 5px 0 #202944}
+.muted{color:#9ba8c9;font-size:13px}
+.center{text-align:center}
+.section-title{font-size:12px;font-weight:900;letter-spacing:1px;color:#aab7e0;margin-bottom:9px}
+.topbar,.game-head{display:flex;justify-content:space-between;align-items:center;margin:10px 0 17px}
+.small-logo{font-size:20px;font-weight:900}
+.tag{padding:7px 11px;border-radius:20px;background:#293451;color:#aab7ff;font-size:11px}
+.player{display:flex;align-items:center;gap:10px;padding:12px;margin-top:8px;background:#27314c;border-radius:12px}
+.avatar{width:35px;height:35px;border-radius:10px;display:grid;place-items:center;background:#6575ff;font-weight:bold}
+.player-name{flex:1;font-weight:bold}
+.host{color:#ffce64;font-size:11px}
+.timer{font-size:25px;font-weight:900;color:#ffcf66;font-variant-numeric:tabular-nums}
+.scorebox{background:#202b47;border-radius:13px;padding:10px 14px;text-align:center}
+.scorebox small{color:#a6b1d2;font-size:10px}
+.scorebox strong{display:block;font-size:22px}
+.board{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:3px;width:100%;aspect-ratio:1;padding:6px;background:#202a43;border:1px solid #394769;border-radius:12px;touch-action:none}
+.cell{min-width:0;min-height:0;border:0;border-radius:4px;padding:0;background:#35415e}
+.cell.filled{background:#8292ff;box-shadow:inset 0 -3px 0 #5969ce}
+.cell.preview{background:#5de0c2;box-shadow:inset 0 -3px 0 #27a990}
+.cell.invalid{background:#ef626c}
+.piece-area{display:flex;justify-content:space-around;gap:8px;margin:17px 0 10px;touch-action:none}
+.piece{width:31%;min-height:100px;border:2px solid transparent;border-radius:12px;background:#202a43;display:flex;justify-content:center;align-items:center;padding:8px;touch-action:none;user-select:none;-webkit-user-select:none}
+.piece.used{opacity:.2}
+.piece.dragging{border-color:#ffcf66;background:#35405f}
+.mini-grid{display:grid;gap:3px;pointer-events:none}
+.mini-cell{width:19px;height:19px;border-radius:3px;background:#91a0ff}
+.mini-empty{background:transparent}
+.result{padding:14px;margin:12px 0;border-radius:13px;background:#303b5c}
+.winner{color:#ffda75;font-weight:900}
+.rank-row{display:flex;justify-content:space-between;padding:8px 3px;border-bottom:1px solid #34405b;font-size:13px}
+.waiting-text{text-align:center;padding:35px 10px;color:#aeb9d8}
+.spinner{width:38px;height:38px;border:4px solid #34405f;border-top-color:#91a0ff;border-radius:50%;margin:0 auto 18px;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#notice{text-align:center;color:#ffcf66;font-size:12px;min-height:20px;margin-top:8px}
+#dragGhost{position:fixed;z-index:99;pointer-events:none;display:none;opacity:.9;transform:translate(-50%,-120%);filter:drop-shadow(0 5px 8px #0008)}
+.ghost-grid{display:grid;gap:3px}
+.ghost-cell{width:22px;height:22px;background:#5de0c2;border-radius:4px}
+.ghost-empty{background:transparent}
+.hint{text-align:center;color:#8997bd;font-size:11px;margin-top:5px}
+</style>
+</head>
+<body>
+
+<div id="dragGhost"><div class="ghost-grid" id="ghostGrid"></div></div>
+
+<section id="menu" class="screen active">
+ <div class="logo">BLOCK <span>BLAST</span></div>
+ <div class="subtitle">ONLINE BATTLE</div>
+ <div class="blocks">
+  <div class="block yellow">▦</div>
+  <div class="block green">▦</div>
+  <div class="block purple">▦</div>
+ </div>
+ <div class="panel">
+  <div class="section-title">TÊN NGƯỜI CHƠI</div>
+  <input id="nameInput" maxlength="16" placeholder="Nhập tên của bạn">
+  <button class="btn" onclick="joinGame()">⚡ GHÉP TRẬN</button>
+  <button class="btn secondary" onclick="showHelp()">HƯỚNG DẪN</button>
+  <div class="muted center" style="margin-top:18px">PEERJS · 4 PLAYERS · 5 MINUTES</div>
+ </div>
+ <div id="menuStatus" class="muted center" style="margin-top:18px">Sẵn sàng chiến đấu?</div>
+</section>
+
+<section id="lobby" class="screen">
+ <div class="topbar">
+  <div class="small-logo">BLOCK BLAST</div>
+  <div class="tag">SẢNH CHỜ</div>
+ </div>
+ <div class="panel">
+  <div class="center">
+   <div style="font-size:25px;font-weight:900">⚔️ SẢNH ĐẤU</div>
+   <div class="muted">Phòng tối đa 4 người</div>
+  </div>
+  <div class="section-title" style="margin-top:22px">NGƯỜI CHƠI ONLINE</div>
+  <div id="lobbyPlayers"></div>
+  <button id="startButton" class="btn" onclick="startGame()">▶ BẮT ĐẦU</button>
+  <div id="hostInfo" class="muted center" style="margin-top:12px"></div>
+ </div>
+ <div id="lastResult"></div>
+ <div id="lobbyNotice" class="muted center" style="margin-top:15px"></div>
+</section>
+
+<section id="waiting" class="screen">
+ <div class="logo" style="font-size:27px">BLOCK <span>BLAST</span></div>
+ <div class="panel" style="margin-top:50px">
+  <div class="waiting-text">
+   <div class="spinner"></div>
+   <h2>ĐANG CHỜ TRẬN</h2>
+   <p>Trận hiện tại đang diễn ra.</p>
+   <p>Bạn sẽ được vào sảnh khi trận kết thúc.</p>
+  </div>
+ </div>
+</section>
+
+<section id="game" class="screen">
+ <div class="game-head">
+  <div>
+   <div class="small-logo">BLOCK BLAST</div>
+   <div class="muted" id="gamePlayerName">Player</div>
+  </div>
+  <div class="timer" id="timer">05:00</div>
+ </div>
+ <div class="game-head">
+  <div class="scorebox"><small>ĐIỂM CỦA BẠN</small><strong id="myScore">0</strong></div>
+  <div class="scorebox"><small>ĐỐI THỦ</small><strong id="opponentCount">1</strong></div>
+ </div>
+ <div class="section-title">BÀN CHƠI 10 × 10</div>
+ <div id="board" class="board"></div>
+ <div class="section-title" style="margin-top:16px">KÉO KHỐI LÊN BÀN ĐỂ ĐẶT</div>
+ <div id="pieces" class="piece-area"></div>
+ <div class="hint">Chạm giữ khối → kéo lên bàn → thả tay</div>
+ <div class="panel" style="margin-top:15px">
+  <div class="section-title">BẢNG ĐIỂM TRẬN ĐẤU</div>
+  <div id="gameRanking"></div>
+ </div>
+ <div id="notice"></div>
+</section>
+
+<script>
+"use strict";
+
+const ROOM_ID = "blockblast-vn-global-room-2026";
+const MAX_PLAYERS = 4;
+const GAME_SECONDS = 300;
+
+const SHAPES = [
+ [[0,0]],[[0,0],[0,1]],[[0,0],[1,0]],
+ [[0,0],[0,1],[1,0],[1,1]],
+ [[0,0],[0,1],[0,2]],[[0,0],[1,0],[2,0]],
+ [[0,0],[0,1],[0,2],[1,2]],
+ [[0,0],[1,0],[2,0],[2,1]],
+ [[0,0],[0,1],[0,2],[1,1]],
+ [[0,0],[1,0],[1,1],[2,1]],
+ [[0,1],[1,0],[1,1],[1,2]],
+ [[0,0],[0,1],[1,0]],
+ [[0,0],[1,0],[2,0],[3,0]],
+ [[0,0],[0,1],[0,2],[0,3]],
+ [[0,0],[1,0],[2,0],[3,0],[4,0]],
+ [[0,0],[0,1],[1,0],[1,1],[2,0],[2,1]]
+];
+
+let peer = null;
+let hostConnection = null;
+let connections = new Map();
+let isHost = false;
+let myId = null;
+let myName = "";
+let currentState = null;
+let hostPlayers = new Map();
+let phase = "connecting";
+let hostDeadline = 0;
+let lastResult = null;
+let hostTimer = null;
+let stateTimer = null;
+let dragIndex = -1;
+let dragShape = null;
+let previewX = -1;
+let previewY = -1;
+let previewValid = false;
+let renderedBoard = "";
+let renderedPieces = "";
+
+const boardEl = document.getElementById("board");
+const piecesEl = document.getElementById("pieces");
+const ghost = document.getElementById("dragGhost");
+const ghostGrid = document.getElementById("ghostGrid");
+
+function showScreen(id){
+ document.querySelectorAll(".screen").forEach(el=>el.classList.remove("active"));
+ document.getElementById(id).classList.add("active");
+}
+
+function escapeHTML(value){
+ return String(value).replace(/[&<>"']/g,c=>({
+  "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+ }[c]));
+}
+
+function showHelp(){
+ alert(
+  "BLOCK BLAST ONLINE\n\n"+
+  "• Người đầu tiên ghép trận là chủ phòng.\n"+
+  "• Phòng tối đa 4 người.\n"+
+  "• Chỉ chủ phòng được bắt đầu.\n"+
+  "• Kéo khối lên bàn để đặt.\n"+
+  "• Mỗi hàng hoặc cột xóa được: +100 điểm.\n"+
+  "• Hết nước đi: reset bàn, -100 điểm.\n"+
+  "• Trận đấu kéo dài 5 phút theo đồng hồ chủ phòng."
+ );
+}
+
+function randomPieces(){
+ return [0,0,0].map(()=>Math.floor(Math.random()*SHAPES.length));
+}
+
+function newPlayer(id,name){
+ return {
+  id,name,score:0,
+  board:Array.from({length:10},()=>Array(10).fill(0)),
+  pieces:randomPieces(),
+  inMatch:false,
+  connected:true
+ };
+}
+
+function getPlayers(){
+ return Array.from(hostPlayers.values());
+}
+
+function getTimeLeft(){
+ return phase==="playing"
+  ?Math.max(0,Math.ceil((hostDeadline-Date.now())/1000))
+  :GAME_SECONDS;
+}
+
+function makeSnapshot(forId){
+ return {
+  phase,
+  me:forId,
+  hostId:"host",
+  timeLeft:getTimeLeft(),
+  players:getPlayers().map(p=>({
+   id:p.id,
+   name:p.name,
+   score:p.score,
+   board:p.board,
+   pieces:p.pieces,
+   inMatch:p.inMatch
+  })),
+  lastResult
+ };
+}
+
+function sendTo(conn,data){
+ if(conn && conn.open){
+  try{conn.send(data)}catch(e){}
+ }
+}
+
+function broadcastState(){
+ if(!isHost)return;
+
+ for(const [id,conn] of connections){
+  sendTo(conn,{type:"state",state:makeSnapshot(id)});
+ }
+ renderState(makeSnapshot("host"));
+}
+
+function sendError(conn,message){
+ sendTo(conn,{type:"error",message});
+}
+
+function hostHandleConnection(conn){
+ connections.set(conn.peer,conn);
+
+ conn.on("data",data=>{
+  if(!data || typeof data!=="object")return;
+
+  if(data.type==="join"){
+   const name=String(data.name||"Player").trim().slice(0,16)||"Player";
+
+   if(hostPlayers.has(conn.peer))return;
+
+   if(getPlayers().length>=MAX_PLAYERS){
+    sendError(conn,"Phòng đã đủ 4 người.");
+    conn.close();
+    return;
+   }
+
+   const player=newPlayer(conn.peer,name);
+
+   if(phase==="lobby"){
+    player.inMatch=false;
+   }else{
+    player.inMatch=false;
+   }
+
+   hostPlayers.set(conn.peer,player);
+   broadcastState();
+   return;
+  }
+
+  const player=hostPlayers.get(conn.peer);
+  if(!player)return;
+
+  if(data.type==="place" && phase==="playing" && player.inMatch){
+   placeBlock(player,Number(data.pieceIndex),Number(data.x),Number(data.y));
+   broadcastState();
+  }
+ });
+
+ conn.on("close",()=>{
+  connections.delete(conn.peer);
+  hostPlayers.delete(conn.peer);
+
+  if(phase==="playing"){
+   const active=getPlayers().filter(p=>p.inMatch);
+   if(active.length===0){
+    finishGame();
+   }
+  }
+
+  broadcastState();
+ });
+
+ conn.on("error",()=>{
+  connections.delete(conn.peer);
+ });
+}
+
+function becomeHost(){
+ isHost=true;
+ myId="host";
+ phase="lobby";
+ hostPlayers.clear();
+ hostPlayers.set("host",newPlayer("host",myName));
+
+ peer.on("connection",hostHandleConnection);
+
+ document.getElementById("menuStatus").textContent="Đã tạo phòng! Bạn là chủ phòng.";
+ broadcastState();
+}
+
+function connectToHost(){
+ isHost=false;
+
+ if(!peer || peer.destroyed)return;
+
+ const conn=peer.connect(ROOM_ID,{reliable:true});
+
+ hostConnection=conn;
+
+ conn.on("open",()=>{
+  document.getElementById("menuStatus").textContent="Đã tìm thấy phòng!";
+  sendTo(conn,{type:"join",name:myName});
+ });
+
+ conn.on("data",msg=>{
+  if(!msg)return;
+
+  if(msg.type==="error"){
+   document.getElementById("menuStatus").textContent=msg.message;
+   alert(msg.message);
+   return;
+  }
+
+  if(msg.type==="state"){
+   currentState=msg.state;
+   myId=currentState.me;
+   renderState(currentState);
+  }
+ });
+
+ conn.on("close",()=>{
+  hostConnection=null;
+  showScreen("menu");
+  document.getElementById("menuStatus").textContent=
+   "Chủ phòng đã ngắt kết nối. Hãy ghép trận lại.";
+ });
+
+ conn.on("error",()=>{
+  document.getElementById("menuStatus").textContent="Lỗi kết nối phòng.";
+ });
+}
+
+function joinGame(){
+ myName=document.getElementById("nameInput").value.trim();
+
+ if(!myName)return alert("Hãy nhập tên!");
+
+ if(peer && !peer.destroyed)return;
+
+ document.getElementById("menuStatus").textContent="Đang tìm phòng...";
+
+ if(typeof Peer==="undefined"){
+  document.getElementById("menuStatus").textContent="Không tải được thư viện PeerJS.";
+  return;
+ }
+
+ // Thử chiếm Peer ID chung. Nếu đã có chủ phòng thì tham gia.
+ peer=new Peer(ROOM_ID);
+
+ let fallbackStarted=false;
+
+ peer.on("open",id=>{
+  if(id===ROOM_ID){
+   becomeHost();
+  }
+ });
+
+ peer.on("error",err=>{
+  if(err.type==="unavailable-id" && !fallbackStarted){
+   fallbackStarted=true;
+
+   try{peer.destroy()}catch(e){}
+   peer=new Peer();
+
+   peer.on("open",()=>{
+    connectToHost();
+   });
+
+   peer.on("error",e=>{
+    document.getElementById("menuStatus").textContent=
+     "PeerJS: "+(e.type||"Lỗi kết nối");
+   });
+  }else{
+   document.getElementById("menuStatus").textContent=
+    "PeerJS: "+(err.type||"Không thể kết nối");
+  }
+ });
+
+ peer.on("disconnected",()=>{
+  if(isHost && peer && !peer.destroyed){
+   peer.reconnect();
+  }
+ });
+}
+
+function startGame(){
+ if(!isHost){
+  showNotice("Chỉ chủ phòng mới được bắt đầu!");
+  return;
+ }
+
+ if(phase!=="lobby")return;
+
+ const players=getPlayers();
+ if(players.length<2)return;
+
+ phase="playing";
+ lastResult=null;
+ hostDeadline=Date.now()+GAME_SECONDS*1000;
+
+ players.forEach(p=>{
+  p.inMatch=true;
+  p.score=0;
+  p.board=Array.from({length:10},()=>Array(10).fill(0));
+  p.pieces=randomPieces();
+ });
+
+ broadcastState();
+
+ clearInterval(hostTimer);
+ clearInterval(stateTimer);
+
+ hostTimer=setInterval(()=>{
+  if(phase!=="playing")return;
+
+  if(Date.now()>=hostDeadline){
+   finishGame();
+   return;
+  }
+
+  broadcastState();
+ },500);
+}
+
+function canPlace(board,shape,x,y){
+ for(const [dy,dx] of shape){
+  const r=y+dy,c=x+dx;
+  if(r<0||r>=10||c<0||c>=10||board[r][c])return false;
+ }
+ return true;
+}
+
+function fitsAny(board,pieces){
+ return pieces.some(id=>{
+  if(id===null)return false;
+  const shape=SHAPES[id];
+
+  for(let y=0;y<10;y++){
+   for(let x=0;x<10;x++){
+    if(canPlace(board,shape,x,y))return true;
+   }
+  }
+  return false;
+ });
+}
+
+function placeBlock(player,index,x,y){
+ if(!Number.isInteger(index)||index<0||index>2)return;
+ if(!Number.isInteger(x)||!Number.isInteger(y))return;
+
+ const id=player.pieces[index];
+ if(id===null || id===undefined)return;
+
+ const shape=SHAPES[id];
+ if(!canPlace(player.board,shape,x,y))return;
+
+ for(const [dy,dx] of shape){
+  player.board[y+dy][x+dx]=1;
+ }
+
+ const fullRows=[];
+ const fullCols=[];
+
+ for(let r=0;r<10;r++){
+  if(player.board[r].every(v=>v===1))fullRows.push(r);
+ }
+
+ for(let c=0;c<10;c++){
+  let full=true;
+  for(let r=0;r<10;r++){
+   if(!player.board[r][c]){full=false;break;}
+  }
+  if(full)fullCols.push(c);
+ }
+
+ for(const r of fullRows){
+  for(let c=0;c<10;c++)player.board[r][c]=0;
+ }
+
+ for(const c of fullCols){
+  for(let r=0;r<10;r++)player.board[r][c]=0;
+ }
+
+ player.score+=(fullRows.length+fullCols.length)*100;
+ player.pieces[index]=null;
+
+ if(player.pieces.every(v=>v===null)){
+  player.pieces=randomPieces();
+ }
+
+ if(!fitsAny(player.board,player.pieces)){
+  player.board=Array.from({length:10},()=>Array(10).fill(0));
+  player.score-=100;
+  player.pieces=randomPieces();
+ }
+}
+
+function finishGame(){
+ if(phase!=="playing")return;
+
+ clearInterval(hostTimer);
+ clearInterval(stateTimer);
+
+ const ranking=getPlayers()
+  .filter(p=>p.inMatch)
+  .sort((a,b)=>b.score-a.score)
+  .map(p=>({name:p.name,score:p.score}));
+
+ const best=ranking.length?ranking[0].score:null;
+ const winners=best===null?[]:
+  ranking.filter(p=>p.score===best).map(p=>p.name);
+
+ lastResult={ranking,winners};
+
+ getPlayers().forEach(p=>{
+  p.inMatch=false;
+  p.board=Array.from({length:10},()=>Array(10).fill(0));
+  p.pieces=randomPieces();
+ });
+
+ phase="lobby";
+ hostDeadline=0;
+ broadcastState();
+}
+
+function sendMessage(data){
+ if(isHost){
+  if(data.type==="place"){
+   const player=hostPlayers.get("host");
+   if(player && player.inMatch){
+    placeBlock(player,Number(data.pieceIndex),Number(data.x),Number(data.y));
+    broadcastState();
+   }
+  }
+ }else{
+  sendTo(hostConnection,data);
+ }
+}
+
+function renderState(s){
+ if(!s)return;
+
+ const me=s.players.find(p=>p.id===s.me);
+
+ if(s.phase==="lobby"){
+  showScreen("lobby");
+  renderLobby(s);
+  return;
+ }
+
+ if(s.phase==="playing"){
+  if(me && me.inMatch){
+   showScreen("game");
+   renderGame(s,me);
+  }else{
+   showScreen("waiting");
+  }
+ }
+}
+
+function renderLobby(s){
+ document.getElementById("lobbyPlayers").innerHTML=
+ s.players.map((p,i)=>`
+  <div class="player">
+   <div class="avatar">${i+1}</div>
+   <div class="player-name">${escapeHTML(p.name)}</div>
+   ${p.id===s.hostId?'<div class="host">CHỦ PHÒNG</div>':''}
+  </div>
+ `).join("");
+
+ const btn=document.getElementById("startButton");
+ const isMeHost=s.me===s.hostId;
+
+ btn.disabled=!isMeHost || s.players.length<2;
+ btn.textContent=!isMeHost?"CHỜ CHỦ PHÒNG":
+  s.players.length<2?"ĐỢI NGƯỜI CHƠI":"▶ BẮT ĐẦU";
+
+ document.getElementById("hostInfo").textContent=isMeHost
+  ?"Bạn là chủ phòng. Bạn có quyền bắt đầu trận."
+  :"Chủ phòng đang chờ người chơi.";
+
+ const result=document.getElementById("lastResult");
+
+ if(s.lastResult){
+  const r=s.lastResult.ranking||[];
+  const w=s.lastResult.winners||[];
+
+  result.innerHTML=`
+   <div class="result">
+    <h3 class="center winner">🏆 KẾT QUẢ TRẬN</h3>
+    <p class="center winner">${
+     w.length?"Người thắng: "+w.map(escapeHTML).join(", "):"Không có người thắng"
+    }</p>
+    ${r.map((p,i)=>`
+     <div class="rank-row">
+      <span>${i+1}. ${escapeHTML(p.name)}</span>
+      <strong>${p.score} điểm</strong>
+     </div>
+    `).join("")}
+   </div>`;
+ }else result.innerHTML="";
+
+ document.getElementById("lobbyNotice").textContent=
+ "Có "+s.players.length+"/"+MAX_PLAYERS+" người trong phòng.";
+}
+
+function renderGame(s,me){
+ document.getElementById("gamePlayerName").textContent=me.name;
+ document.getElementById("myScore").textContent=me.score;
+ document.getElementById("timer").textContent=formatTime(s.timeLeft);
+
+ document.getElementById("opponentCount").textContent=
+  s.players.filter(p=>p.inMatch&&p.id!==me.id).length;
+
+ const boardKey=JSON.stringify(me.board);
+ if(boardKey!==renderedBoard){
+  renderedBoard=boardKey;
+  renderBoard(me.board);
+ }
+
+ const pieceKey=JSON.stringify(me.pieces);
+ if(pieceKey!==renderedPieces){
+  renderedPieces=pieceKey;
+  renderPieces(me.pieces);
+ }
+
+ renderRanking(s.players);
+}
+
+function formatTime(t){
+ t=Math.max(0,Number(t)||0);
+ return String(Math.floor(t/60)).padStart(2,"0")+":"+
+  String(t%60).padStart(2,"0");
+}
+
+function renderBoard(b){
+ boardEl.innerHTML="";
+
+ for(let y=0;y<10;y++){
+  for(let x=0;x<10;x++){
+   const cell=document.createElement("div");
+   cell.className="cell"+(b[y][x]?" filled":"");
+   cell.dataset.x=x;
+   cell.dataset.y=y;
+   boardEl.appendChild(cell);
+  }
+ }
+}
+
+function renderPieces(pieces){
+ piecesEl.innerHTML="";
+
+ pieces.forEach((id,index)=>{
+  const box=document.createElement("div");
+  box.className="piece"+(id===null?" used":"");
+  box.dataset.index=index;
+
+  if(id!==null){
+   const shape=SHAPES[id];
+   const size=shapeSize(shape);
+   const grid=document.createElement("div");
+   grid.className="mini-grid";
+   grid.style.gridTemplateColumns=`repeat(${size.cols},19px)`;
+
+   for(let y=0;y<size.rows;y++){
+    for(let x=0;x<size.cols;x++){
+     const c=document.createElement("div");
+     c.className=shape.some(p=>p[0]===y&&p[1]===x)
+      ?"mini-cell":"mini-cell mini-empty";
+     grid.appendChild(c);
+    }
+   }
+   box.appendChild(grid);
+  }else{
+   box.textContent="✓";
+  }
+
+  piecesEl.appendChild(box);
+ });
+}
+
+function renderRanking(players){
+ const active=players.filter(p=>p.inMatch).sort((a,b)=>b.score-a.score);
+
+ document.getElementById("gameRanking").innerHTML=
+ active.map((p,i)=>`
+  <div class="rank-row">
+   <span>${i+1}. ${escapeHTML(p.name)}</span>
+   <strong>${p.score}</strong>
+  </div>
+ `).join("");
+}
+
+function shapeSize(shape){
+ return {
+  rows:Math.max(...shape.map(p=>p[0]))+1,
+  cols:Math.max(...shape.map(p=>p[1]))+1
+ };
+}
+
+function checkPreview(x,y){
+ const me=currentState?.players.find(p=>p.id===myId);
+ if(!me || !me.board || !dragShape)return false;
+
+ for(const [dy,dx] of dragShape){
+  const r=y+dy,c=x+dx;
+  if(r<0||r>=10||c<0||c>=10||me.board[r][c])return false;
+ }
+ return true;
+}
+
+function drawPreview(x,y,valid){
+ document.querySelectorAll(".cell").forEach(el=>{
+  el.classList.remove("preview","invalid");
+ });
+
+ for(const [dy,dx] of dragShape||[]){
+  const r=y+dy,c=x+dx;
+  if(r<0||r>=10||c<0||c>=10)continue;
+
+  const cell=boardEl.children[r*10+c];
+  if(cell)cell.classList.add(valid?"preview":"invalid");
+ }
+}
+
+function clearPreview(){
+ document.querySelectorAll(".cell").forEach(el=>{
+  el.classList.remove("preview","invalid");
+ });
+
+ ghost.style.display="none";
+ document.querySelectorAll(".piece").forEach(el=>el.classList.remove("dragging"));
+
+ dragIndex=-1;
+ dragShape=null;
+ previewX=-1;
+ previewY=-1;
+ previewValid=false;
+}
+
+function makeGhost(shape){
+ ghostGrid.innerHTML="";
+ const size=shapeSize(shape);
+ ghostGrid.style.gridTemplateColumns=`repeat(${size.cols},22px)`;
+
+ for(let y=0;y<size.rows;y++){
+  for(let x=0;x<size.cols;x++){
+   const cell=document.createElement("div");
+   cell.className=shape.some(p=>p[0]===y&&p[1]===x)
+    ?"ghost-cell":"ghost-cell ghost-empty";
+   ghostGrid.appendChild(cell);
+  }
+ }
+}
+
+/*
+ * Căn theo vị trí thật của các ô trên bàn.
+ * Không ước lượng bằng rect.width / 10 nữa.
+ */
+function updateDrag(clientX,clientY){
+ if(!dragShape)return;
+
+ ghost.style.display="block";
+ ghost.style.left=clientX+"px";
+ ghost.style.top=clientY+"px";
+
+ const first=boardEl.children[0];
+ const second=boardEl.children[1];
+ const nextRow=boardEl.children[10];
+
+ if(!first||!second||!nextRow)return;
+
+ const a=first.getBoundingClientRect();
+ const b=second.getBoundingClientRect();
+ const c=nextRow.getBoundingClientRect();
+
+ const pitchX=b.left-a.left;
+ const pitchY=c.top-a.top;
+ const size=shapeSize(dragShape);
+
+ const centerCol=Math.round((clientX-(a.left+a.width/2))/pitchX);
+ const centerRow=Math.round((clientY-(a.top+a.height/2))/pitchY);
+
+ let x=centerCol-Math.floor((size.cols-1)/2);
+ let y=centerRow-Math.floor((size.rows-1)/2);
+
+ // Cho phép kéo hơi ra ngoài mép rồi tự căn vào bàn.
+ const rect=boardEl.getBoundingClientRect();
+ const marginX=pitchX*0.8;
+ const marginY=pitchY*0.8;
+
+ const nearBoard=
+  clientX>=rect.left-marginX&&clientX<=rect.right+marginX&&
+  clientY>=rect.top-marginY&&clientY<=rect.bottom+marginY;
+
+ if(!nearBoard){
+  previewValid=false;
+  drawPreview(-20,-20,false);
+  previewX=-1;
+  previewY=-1;
+  return;
+ }
+
+ x=Math.max(0,Math.min(10-size.cols,x));
+ y=Math.max(0,Math.min(10-size.rows,y));
+
+ previewX=x;
+ previewY=y;
+ previewValid=checkPreview(x,y);
+ drawPreview(x,y,previewValid);
+}
+
+function beginDrag(e,box){
+ const index=Number(box.dataset.index);
+ const me=currentState?.players.find(p=>p.id===myId);
+
+ if(!me||!me.pieces||me.pieces[index]===null)return;
+
+ e.preventDefault();
+
+ dragIndex=index;
+ dragShape=SHAPES[me.pieces[index]];
+ box.classList.add("dragging");
+
+ try{box.setPointerCapture(e.pointerId)}catch(err){}
+
+ makeGhost(dragShape);
+ updateDrag(e.clientX,e.clientY);
+}
+
+piecesEl.addEventListener("pointerdown",e=>{
+ const box=e.target.closest(".piece");
+ if(!box)return;
+ beginDrag(e,box);
+});
+
+document.addEventListener("pointermove",e=>{
+ if(dragIndex<0)return;
+ e.preventDefault();
+ updateDrag(e.clientX,e.clientY);
+},{passive:false});
+
+function finishDrag(e){
+ if(dragIndex<0)return;
+
+ const rect=boardEl.getBoundingClientRect();
+ const size=shapeSize(dragShape);
+
+ const first=boardEl.children[0];
+ const second=boardEl.children[1];
+ const nextRow=boardEl.children[10];
+
+ let near=false;
+
+ if(first&&second&&nextRow){
+  const a=first.getBoundingClientRect();
+  const b=second.getBoundingClientRect();
+  const c=nextRow.getBoundingClientRect();
+
+  const marginX=(b.left-a.left)*0.8;
+  const marginY=(c.top-a.top)*0.8;
+
+  near=
+   e.clientX>=rect.left-marginX&&e.clientX<=rect.right+marginX&&
+   e.clientY>=rect.top-marginY&&e.clientY<=rect.bottom+marginY;
+ }
+
+ if(near&&previewValid&&previewX>=0&&previewY>=0){
+  sendMessage({
+   type:"place",
+   pieceIndex:dragIndex,
+   x:previewX,
+   y:previewY
+  });
+  showNotice("");
+ }else{
+  showNotice("Vị trí chưa hợp lệ. Hãy thử kéo gần vào bàn hơn.");
+ }
+
+ clearPreview();
+}
+
+document.addEventListener("pointerup",finishDrag);
+document.addEventListener("pointercancel",()=>{
+ if(dragIndex>=0)clearPreview();
+});
+
+document.getElementById("nameInput").addEventListener("keydown",e=>{
+ if(e.key==="Enter")joinGame();
+});
+
+window.addEventListener("beforeunload",()=>{
+ try{
+  clearInterval(hostTimer);
+  clearInterval(stateTimer);
+  if(peer)peer.destroy();
+ }catch(e){}
+});
+
+function showNotice(text){
+ document.getElementById("notice").textContent=text;
+}
+</script>
+</body>
+</html>
